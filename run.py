@@ -9,22 +9,42 @@ def process_video(video_path, model, show_result):
         if not ret:
             break
         output = model.predict(frame)
+        persons = filter_persons(output)
+        person = get_the_most_central_person(persons, frame.shape[1], frame.shape[0])
         if show_result:
-            display_output(frame, output)
+            display_result(frame, person)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
+
+def filter_persons(output):
+    # Filtrer les résultats pour obtenir uniquement les personnes
+    for boxes in output[0].boxes:
+        if boxes.cls == 0:
+            return boxes
+    return None
+
+def get_the_most_central_person(persons, image_width, image_height):
+    # Obtenir la personne la plus centrale
+    best_person = None
+    best_distance = image_width + image_height
+    for person in persons.xyxy:
+        x1, y1, x2, y2 = person
+        x_center, y_center = (x1 + x2) / 2, (y1 + y2) / 2
+        x_distance = abs(image_width / 2 - x_center)
+        y_distance = abs(image_height / 2 - y_center)
+        distance = x_distance + y_distance
+        if distance < best_distance:
+            # On a trouvé une personne plus centrale
+            best_person = person
+            best_distance = distance
+    return best_person
     
 
-def display_output(frame, output):
-    if len(output) > 0:
-        # Afficher les résultats sur la vidéo
-        labels = output[0].names
-        for boxes in output[0].boxes:
-            label = labels[int(boxes.cls)]
-            for box in boxes.xyxy:
-                x1, y1, x2, y2 = box
-                cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (36,255,12), 2)
-                cv2.putText(frame, label, (int(x1), int(y1-10)), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
+def display_result(frame, person):
+    if person is not None:
+        # Afficher la personne sur la vidéo
+        x1, y1, x2, y2 = person
+        cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (36,255,12), 2)
     # Afficher la frame
     cv2.imshow("Result", frame)
 
@@ -52,5 +72,5 @@ if __name__ == "__main__":
     # Load model
     model = YOLOv10.from_pretrained(args.model)
 
-    # Process webcam feed
+    # Process webcam
     process_video(args.video_path, model, args.show_result)
