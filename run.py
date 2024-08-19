@@ -38,10 +38,9 @@ def frame_processor(model, show_result):
         # Traiter la frame
         output = model.predict(frame)
         persons = filter_persons(output)
-        person = get_the_most_central_person(persons, frame.shape[1], frame.shape[0])
-        # TODO: implementer un histeresis pour éviter les sauts brusques
+        person, distances = get_the_most_central_person(persons, frame.shape[1], frame.shape[0])
         if show_result:
-            display_result(frame, person)
+            display_result(frame, person, distances)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 # Arret forcé par l'utilisateur
                 video_thread.join()
@@ -55,33 +54,51 @@ def frame_processor(model, show_result):
 
 def filter_persons(output):
     # Filtrer les résultats pour obtenir uniquement les personnes
+    people = []
     for boxes in output[0].boxes:
         if boxes.cls == 0:
-            return boxes
-    return None
+            people.append(boxes)
+    return people
 
 def get_the_most_central_person(persons, image_width, image_height):
     # Obtenir la personne la plus centrale
     best_person = None
-    best_distance = image_width + image_height
-    for person in persons.xyxy:
-        x1, y1, x2, y2 = person
-        x_center, y_center = (x1 + x2) / 2, (y1 + y2) / 2
-        x_distance = abs(image_width / 2 - x_center)
-        y_distance = abs(image_height / 2 - y_center)
-        distance = x_distance + y_distance
-        if distance < best_distance:
-            # On a trouvé une personne plus centrale
-            best_person = person
-            best_distance = distance
-    return best_person
+    best_distance_w = image_width
+    best_distance_h = image_height
+    best_distance = best_distance_w + best_distance_h
+    print("number of persons: ", len(persons))
+    for person in persons:
+        for box in person.xyxy:
+            x1, y1, x2, y2 = box
+            x_center, y_center = (x1 + x2) / 2, (y1 + y2) / 2
+            distance_w = -(image_width / 2 - x_center)
+            distance_h = -(image_height / 2 - y_center)
+            distance = abs(distance_w) + abs(distance_h)
+            if distance < best_distance:
+                # On a trouvé une personne plus centrale
+                best_person = box
+                best_distance = distance
+                best_distance_w = distance_w
+                best_distance_h = distance_h
+
+    # Convertir les distances en % par rapport à la taille de l'image
+    best_distance_w = (best_distance_w / (image_width / 2)) * 100
+    best_distance_h = (best_distance_h / (image_height / 2)) * 100
+
+    return best_person, (best_distance_w, best_distance_h)
     
 
-def display_result(frame, person):
+def display_result(frame, person, distances):
     if person is not None:
         # Afficher la personne sur la vidéo
         x1, y1, x2, y2 = person
         cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (36,255,12), 2)
+        # Draw the distances with arrow from the center of the image
+        image_center = (frame.shape[1] // 2, frame.shape[0] // 2)
+        w = distances[0] / 100 * image_center[0]
+        h = distances[1] / 100 * image_center[1]
+        cv2.arrowedLine(frame, image_center, (image_center[0] + int(w), image_center[1]), (0, 255, 0), 4, tipLength=0.2)
+        cv2.arrowedLine(frame, image_center, (image_center[0], image_center[1] + int(h)), (255, 0, 0), 4, tipLength=0.2)
     # Afficher la frame
     cv2.imshow("Result", frame)
 
