@@ -1,20 +1,57 @@
 import argparse
 import cv2
+import queue
+import threading
+import time
 from ultralytics import YOLOv10
 
-def process_video(video_path, model, show_result):
+frame_queue = queue.Queue(maxsize=1)
+
+def video_reader(video_path):
     cap = cv2.VideoCapture(video_path)
-    while True:
+    fps = cap.get(cv2.CAP_PROP_FPS)  # Récupérer le FPS de la vidéo
+    frame_duration = 1 / fps  # Calculer la durée entre deux frames (en secondes)
+    while cap.isOpened():
+        start_time = time.time()  # Temps de départ pour chaque frame
         ret, frame = cap.read()
         if not ret:
             break
+
+        if not frame_queue.full():
+            frame_queue.put(frame)
+        
+        # Attendre pour synchroniser avec le FPS de la vidéo
+        elapsed_time = time.time() - start_time
+        if elapsed_time < frame_duration:
+            time.sleep(frame_duration - elapsed_time)
+    
+    cap.release()
+    frame_queue.put(None)
+
+def frame_processor(model, show_result):
+    while True:
+        frame = frame_queue.get()
+        if frame is None:
+            # Fin de la lecture
+            break
+        
+        # Traiter la frame
         output = model.predict(frame)
         persons = filter_persons(output)
         person = get_the_most_central_person(persons, frame.shape[1], frame.shape[0])
+        # TODO: implementer un histeresis pour éviter les sauts brusques
         if show_result:
             display_result(frame, person)
             if cv2.waitKey(1) & 0xFF == ord('q'):
+                # Arret forcé par l'utilisateur
+                video_thread.join()
                 break
+        
+        # Quitter si on appuie sur 'q'
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    
+    cv2.destroyAllWindows()
 
 def filter_persons(output):
     # Filtrer les résultats pour obtenir uniquement les personnes
@@ -73,4 +110,6 @@ if __name__ == "__main__":
     model = YOLOv10.from_pretrained(args.model)
 
     # Process webcam
-    process_video(args.video_path, model, args.show_result)
+    video_thread = threading.Thread(target=video_reader, args=(args.video_path,))
+    video_thread.start()
+    frame_processor(model, args.show_result)

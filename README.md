@@ -12,5 +12,5 @@ pip install -r requirements.txt
 
 ## Usage
 ```
-python run.py [-h] [--video-path VIDEO_PATH] [--model MODEL] [--show-result]
+python run.py [-h] [--video-path VIDEO_PATH] [--model MODEL]
 ```
