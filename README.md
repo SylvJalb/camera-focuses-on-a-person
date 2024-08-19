@@ -21,6 +21,6 @@ python run.py [-h] [--video-path VIDEO_PATH] [--model MODEL] [--show-result]
 ## Performance
 YoloV10s model have 7.2 million parameters, and need 21.6 GFLOPs. The latency is only 2,49 ms.
 
-## Improvement
+## Improvement ideas
 - [ ] Add an histeresis to avoid the little changement of focused person.
 - [ ] Do batch processing to improve the performance.
