@@ -1,0 +1,4 @@
+opencv-python==4.10.0.84
+git+https://github.com/THU-MIG/yolov10.git
+huggingface-hub==0.24.6
+safetensors==0.4.4
